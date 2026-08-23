@@ -754,8 +754,8 @@ function renderImport() {
         「材料」から「作り方」までの間だけを読み取ります。広告や関連レシピが混ざっていても大丈夫です。
       </div>
       <p class="report">
-        うまく取り出せないときは <button class="link" id="copy-src">この文章をコピー</button> して、
-        どうなってほしかったかと一緒に知らせてください。直せます。<br>
+        うまく取り出せないときは <button class="link" id="copy-src">この文章を送る</button> を押して、
+        メールやAirDropで知らせてください。読み取られた文章そのものがあれば直せます。<br>
         <span class="num">版 ${BUILD}</span>
       </p>
     </div>
@@ -765,18 +765,33 @@ function renderImport() {
   document.getElementById("run").onclick = runExtract;
 
   // 不具合の報告には、読み取られた文章そのものが要る。手で写させない。
+  //
+  // 報告する人と、直す人の端末は別のことが多い。iPhoneで読み取ってパソコンで書く、
+  // という往復ができるように、コピーではなく共有シートを開く。
+  // AirDrop・メール・メモ、どれでも同じ文章がそのまま渡る。
   document.getElementById("copy-src").onclick = async (event) => {
     const text = document.getElementById("src").value.trim();
     if (!text) return;
     const label = event.target;
+    const payload = `--- レシピかご 版 ${BUILD} ---\n${text}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "レシピかご 読み取り結果", text: payload });
+        return;
+      } catch {
+        // 共有を取り消した場合も、下のコピーに落とす。
+      }
+    }
+
     try {
-      await navigator.clipboard.writeText(`--- レシピかご 版 ${BUILD} ---\n${text}`);
+      await navigator.clipboard.writeText(payload);
       label.textContent = "コピーしました";
     } catch {
       document.getElementById("src").select();
       label.textContent = "選択しました（コピーを押してください）";
     }
-    setTimeout(() => { label.textContent = "この文章をコピー"; }, 2500);
+    setTimeout(() => { label.textContent = "この文章を送る"; }, 2500);
   };
 
   document.getElementById("paste").onclick = async () => {
