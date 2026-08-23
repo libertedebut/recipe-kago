@@ -398,7 +398,14 @@ const UNIT_ALIASES = {
 
 /** 材料の量ではない単位。手順の文章を材料と取り違えないために使う。 */
 const TIME_AND_LENGTH_UNITS = [
-  "分", "秒", "時間", "時", "cm", "mm", "m", "度", "℃", "回", "人分", "人前",
+  "分", "秒", "時間", "時", "日", "日間", "週間", "か月", "ヶ月", "年",
+  "cm", "mm", "m", "度", "℃", "回", "人分", "人前",
+];
+
+/** レシピ情報の見出し。ページの飾りであって材料ではない。 */
+const NOT_INGREDIENT_NAMES = [
+  "容量", "日持ち", "保存", "分量", "カロリー", "エネルギー", "塩分", "費用",
+  "調理時間", "冷蔵", "冷凍", "常温",
 ];
 
 /** 単位の末尾に付きやすい飾り。「1かけ分」＝「1かけ」。 */
@@ -499,6 +506,7 @@ function parseValueUnit(text) {
     }
   }
 
+
   // 先頭の数値部分と、それに続く単位に分ける（例: 200g → 200 と g）。
   let numberPart = "";
   let unitPart = "";
@@ -577,7 +585,8 @@ function mergeQuantities(quantities) {
   // 1つだけのときも、「大1」→「大さじ1」のように読みやすい形に直してから返す。
   if (valid.length === 1) {
     const amount = parseAmount(valid[0]);
-    return amount ? combine([amount], amount.unit) : valid[0];
+    // 足し算できない書き方はそのまま残すが、全角の数字だけは半角に揃える。
+    return amount ? combine([amount], amount.unit) : normalizeText(valid[0]);
   }
 
   const amounts = valid.map(parseAmount);
@@ -799,7 +808,7 @@ function prepareRecipe(raw) {
     title: title ?? guessTitle(lines, start),
     sectionLines: [
       ...lines.slice(start + 1, end),
-      ...recoverStrayIngredients(lines, end, searchEnd),
+      ...recoverStrayIngredients(lines, end, Math.min(end + 15, searchEnd)),
     ],
     foundSection: end > start + 1,
   };
@@ -824,7 +833,9 @@ function recoverStrayIngredients(lines, from, to) {
 
     const split = splitNameAndQuantity(line) ?? splitAttachedQuantity(line);
     if (!split) continue;
-    if (!isIngredientName(stripMarkers(split.name))) continue;
+    const name = stripMarkers(split.name);
+    if (!isIngredientName(name)) continue;
+    if (NOT_INGREDIENT_NAMES.some((word) => name.includes(word))) continue;
 
     const text = normalizeText(split.quantity);
     const vague = VAGUE_QUANTITIES.some((v) => text.startsWith(v));
@@ -891,7 +902,21 @@ const MARKER_PATTERN = /^[●○◯◎▲△▼■□★☆・※＊*+\-–—:�
 // 材料名ではない。1文字のアルファベットに区切り記号が続く形だけを落とす。
 const GROUP_MARKER = /^(?:[A-Za-zＡ-Ｚａ-ｚ][｜|:：\s]\s*|[A-EＡ-Ｅ](?=[ぁ-んァ-ヶ一-龠]))/;
 
+/** その位置が括弧の内側かどうか。 */
+function insideBrackets(text, index) {
+  let depth = 0;
+  for (let i = 0; i < index; i++) {
+    if ("（(".includes(text[i])) depth++;
+    else if ("）)".includes(text[i]) && depth > 0) depth--;
+  }
+  return depth > 0;
+}
+
+/** 「梅干し（メモ1）」の（メモ1）は本文への参照で、材料名の一部ではない。 */
+const NAME_REFERENCE = /[（(](?:メモ|注|※|補足|注釈)[^）)]*[）)]\s*$/;
+
 function stripMarkers(text) {
+  text = text.replace(NAME_REFERENCE, "");
   let result = text.replace(MARKER_PATTERN, "").trim();
   const withoutGroup = result.replace(GROUP_MARKER, "").trim();
   if ([...withoutGroup].length >= 2) result = withoutGroup;
@@ -924,8 +949,18 @@ function isQuantity(text) {
   if (VAGUE_QUANTITIES.some((v) => value === v || value.startsWith(v))) return true;
 
   const amount = parseAmount(value);
-  if (!amount) return false;
-  return [...amount.unit].length <= 4;
+  if (amount) return [...amount.unit].length <= 4;
+
+  // 「大3粒」「小1個」の先頭は大きさの話で、大さじ・小さじではない。
+  // 分量として認めたうえで、書かれたままの形で残す。買い物では「大」が要る。
+  const sized = value.match(/^[大中小](.+)$/);
+  if (sized) {
+    const inner = parseAmount(sized[1]);
+    if (inner && inner.unit && !PREFIX_UNITS.includes(inner.unit)) {
+      return [...inner.unit].length <= 4;
+    }
+  }
+  return false;
 }
 
 /** 見出しや分量表記が材料として紛れ込むのを防ぐ。 */
@@ -1081,6 +1116,8 @@ function splitAttachedQuantity(line) {
   for (const match of text.matchAll(QUANTITY_START)) {
     const index = match.index;
     if (index <= 0) continue;
+    // 「梅干し（メモ1）」の 1 は補足の番号。括弧の中では割らない。
+    if (insideBrackets(text, index)) continue;
 
     const name = text.slice(0, index).trim();
     const quantity = text.slice(index).trim();
@@ -1205,7 +1242,7 @@ function normalizeName(name) {
 }
 
 // 組み立てた日付とコミット。不具合の報告に添えてもらうための目印。
-const BUILD = "2026-08-23-62579fb";
+const BUILD = "2026-08-23-bc19dba";
 
 // ===========================================================================
 // 保存
