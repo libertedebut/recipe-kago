@@ -1100,4 +1100,11 @@ function go(screen) {
 }
 
 if (!importFromHash() && !openClipboardImport()) go("home");
+
+// Safariに同じページのタブが残っていると、#より後ろだけ変えても再読み込みされない。
+// ショートカットから二度目に送ったとき、取り込みが始まらないのを防ぐ。
+window.addEventListener("hashchange", () => {
+  if (importFromHash()) return;
+  openClipboardImport();
+});
 </script>
