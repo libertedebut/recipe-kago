@@ -27,13 +27,15 @@
 
 ### 準備
 
-「レシピかご」のURLを控えてください。以下では
+このショートカットは「レシピかごを開く」という命令で終わります。
+そのため、レシピかごの住所（URL）が必要です。
 
 ```
-https://例.com/app.html
+https://libertedebut.github.io/recipe-kago/
 ```
 
-と書きます。**ここはご自分のURLに読み替えてください。**
+**これがレシピかごの住所です。** 手順7でこのとおりに入力します。
+自分で別の場所に置いている場合は、その住所に読み替えてください。
 
 ---
 
@@ -171,7 +173,7 @@ https://例.com/app.html
 4. まず、URLを**手で入力**します（変数はまだ入れません）
 
 ```
-https://例.com/app.html#r=
+https://libertedebut.github.io/recipe-kago/#r=
 ```
 
    > 最後は `#r=` で終わります。この後ろに変数をつなげます。
@@ -187,7 +189,7 @@ https://例.com/app.html#r=
 7. 完成すると、こう見えます
 
 ```
-https://例.com/app.html#r=［Base64エンコードされたテキスト］
+https://libertedebut.github.io/recipe-kago/#r=［Base64エンコードされたテキスト］
 ```
 
    `［ ］` の部分が青いピルになっていれば正解です。
@@ -228,7 +230,7 @@ https://例.com/app.html#r=［Base64エンコードされたテキスト］
 3  ［抽出されたテキスト］を @@@RECIPE@@@ で結合
 4  ［結合されたテキスト］をBase64エンコード（改行：なし）
 5  テキスト
-   https://例.com/app.html#r=［Base64エンコードされたテキスト］
+   https://libertedebut.github.io/recipe-kago/#r=［Base64エンコードされたテキスト］
 6  ［テキスト］を開く
 ```
 
