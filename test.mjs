@@ -157,5 +157,50 @@ check("醤油が合算されている", soy?.quantity ?? "-", "大さじ5");
 check("醤油が2つのレシピに紐づく", String(soy?.recipes.length ?? 0), "2");
 
 // ---------------------------------------------------------------------------
+// iPhoneのショートカットで雑誌の見開きを読み取った実物。
+// 見出しが2行に割れる、合わせ調味料の「A」が付く、「各」でまとめ書きされる、
+// という誌面特有の癖がすべて入っている。
+console.log("\n■ 雑誌の写真から読み取った文章");
+
+const scanned = `レンチンの
+簡単蒸しで
+ヘルシー魚料理が完成
+鮭と小松菜の
+中華蒸し
+サイズ
+材料 (2人分)
+鮭...・2切れ
+小松菜・・・1束 (200g)
+にんじん・・・⅕本 (30g)
+A しょうがのせん切り
+...1かけ分
+酒、酢・各大さじ1
+しょうゆ・・・・大さじ1½
+ごま油・・・大さじ1
+塩、こしょう・・・各少々
+作り方
+小松菜は5cm長さに切る。
+134`;
+
+const scan = extractRecipe(scanned);
+check("2行に割れた見出しをつなぐ", scan.dishName, "鮭と小松菜の中華蒸し");
+check("材料の数", String(scan.ingredients.length), "10");
+
+const find = (name) => scan.ingredients.find((i) => i.name === name);
+check("合わせ調味料の記号Aを外す", find("しょうがのせん切り")?.quantity ?? "-", "1かけ");
+check("「酒、酢・各大さじ1」を酒に分ける", find("酒")?.quantity ?? "-", "大さじ1");
+check("同じく酢に分ける", find("酢")?.quantity ?? "-", "大さじ1");
+check("「塩、こしょう・各少々」を塩に分ける", find("塩")?.quantity ?? "-", "少々");
+check("同じくこしょうに分ける", find("こしょう")?.quantity ?? "-", "少々");
+check("⅕を分数のまま出す", find("にんじん")?.quantity ?? "-", "1/5本(30g)");
+check("1½を足した形にする", find("しょうゆ")?.quantity ?? "-", "大さじ1 1/2");
+check("末尾の中黒を外す", find("鮭")?.quantity ?? "-", "2切れ");
+
+console.log("\n  抽出結果:");
+for (const item of scan.ingredients) {
+  console.log(`    ${item.category.padEnd(6, "　")} ${item.name}  ${item.quantity}`);
+}
+
+// ---------------------------------------------------------------------------
 console.log(failures === 0 ? "\n✅ すべて通りました\n" : `\n❌ ${failures}件 失敗\n`);
 process.exit(failures === 0 ? 0 : 1);

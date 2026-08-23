@@ -501,7 +501,10 @@ function formatAmount(value, unit) {
   const whole = Math.trunc(value);
   const fraction = value - whole;
 
-  const table = { 25: "1/4", 33: "1/3", 50: "1/2", 67: "2/3", 75: "3/4" };
+  const table = {
+    13: "1/8", 17: "1/6", 20: "1/5", 25: "1/4", 33: "1/3", 38: "3/8", 40: "2/5",
+    50: "1/2", 60: "3/5", 63: "5/8", 67: "2/3", 75: "3/4", 80: "4/5", 83: "5/6", 88: "7/8",
+  };
   const fractionText = table[Math.round(fraction * 100)] ?? null;
 
   let numberText;
@@ -763,28 +766,77 @@ function prepareRecipe(raw) {
   };
 }
 
-/** パンくずが無いとき、材料欄の手前から料理名らしい行を探す。 */
+/** 料理名になりえない行。誌面の飾り文字やページ番号が紛れ込むのを防ぐ。 */
+const TITLE_NOISE = /^(サイズ|材料|作り方|調理|下ごしらえ|保存|冷凍|半解凍|解凍|完成|memo|point)/i;
+
+function isTitleNoise(line) {
+  const text = normalizeText(line);
+  const length = [...text].length;
+  if (length < 2 || length > 40) return true;
+  if (/^[0-9A-Za-z\s.,'"()-]+$/.test(text)) return true; // ページ番号や英字の飾り
+  if (/^[0-9]/.test(text)) return true;
+  if (text.endsWith("。")) return true; // 「〜にぴったり。」のような煽り文
+  if (TITLE_NOISE.test(text)) return true;
+  if (isQuantity(text)) return true;
+  if (text.includes("人分")) return true;
+  if (text.includes("分") && length < 8) return true;
+  return false;
+}
+
+/**
+ * パンくずが無いとき、材料欄の手前から料理名らしい行を探す。
+ *
+ * 雑誌の見開きを撮った写真では、大きな見出しが「鮭と小松菜の」「中華蒸し」のように
+ * 2行に割れて読み取られる。直前の行が「の」「と」で終わっていれば続きとみなしてつなぐ。
+ */
 function guessTitle(lines, start) {
-  for (let i = start - 1; i >= 0 && i >= start - 8; i--) {
-    const line = lines[i];
-    const length = [...line].length;
-    if (length < 2 || length > 40) continue;
-    if (/^[0-9]/.test(normalizeText(line))) continue;
-    if (isQuantity(line)) continue;
-    if (line.includes("分") && length < 8) continue;
-    return line;
+  const candidates = [];
+  for (let i = start - 1; i >= 0 && i >= start - 10; i--) {
+    if (isTitleNoise(lines[i])) continue;
+    candidates.push(lines[i].trim());
+    if (candidates.length >= 3) break;
   }
-  return null;
+  if (candidates.length === 0) return null;
+
+  let title = candidates[0];
+  for (let i = 1; i < candidates.length; i++) {
+    const previous = candidates[i];
+    if (!/[のとやと・&]$/.test(previous)) break;
+    if ([...previous].length + [...title].length > 40) break;
+    title = previous + title;
+  }
+  return title;
 }
 
 // ---------------------------------------------------------------------------
 // 材料の抜き出し
 // ---------------------------------------------------------------------------
 
-const MARKER_PATTERN = /^[●○◯◎▲△▼■□★☆・※＊*+\-–—:：「」『』\s]+|[\s:：]+$/g;
+const MARKER_PATTERN = /^[●○◯◎▲△▼■□★☆・※＊*+\-–—:：「」『』\s]+|[\s:：・.]+$/g;
+
+// 「A｜トマト缶」「A しょうがのせん切り」の A は、合わせ調味料をまとめる記号であって
+// 材料名ではない。1文字のアルファベットに区切り記号が続く形だけを落とす。
+const GROUP_MARKER = /^[A-Za-zＡ-Ｚａ-ｚ][｜|:：\s]\s*/;
 
 function stripMarkers(text) {
-  return text.replace(MARKER_PATTERN, "").trim();
+  let result = text.replace(MARKER_PATTERN, "").trim();
+  const withoutGroup = result.replace(GROUP_MARKER, "").trim();
+  if ([...withoutGroup].length >= 2) result = withoutGroup;
+  return result.replace(MARKER_PATTERN, "").trim();
+}
+
+/**
+ * 「酒、酢・各大さじ1」「塩、こしょう」のように1行へまとめられた材料を分ける。
+ * 分けたそれぞれに同じ分量を持たせる。レシピ本の「各」はその意味で使われる。
+ */
+function splitSharedNames(name) {
+  const base = name.replace(/[・\s]*各$/, "").trim();
+  if (!base.includes("、")) return [name];
+
+  const parts = base.split("、").map(stripMarkers).filter(Boolean);
+  if (parts.length < 2) return [name];
+  if (parts.some((part) => [...part].length > 12)) return [name];
+  return parts;
 }
 
 /**
@@ -865,11 +917,13 @@ function parseIngredients(sectionLines) {
 
   flush(null);
 
-  return results.map((item) => ({
-    name: item.name,
-    quantity: mergeQuantities([item.quantity]),
-    category: categorize(item.name),
-  }));
+  return results.flatMap((item) =>
+    splitSharedNames(item.name).map((name) => ({
+      name,
+      quantity: mergeQuantities([item.quantity]),
+      category: categorize(name),
+    })),
+  );
 }
 
 /** 「鶏もも肉  1枚（約300g）」のような1行を、名前と分量に割る。 */
