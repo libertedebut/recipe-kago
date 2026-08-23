@@ -240,11 +240,12 @@
     flex: none; width: 108px;
   }
   .draft .box { margin-top: 6px; cursor: pointer; }
-  .draft .fix {
+  .draft .fix, .item .fix {
     align-self: flex-start; font-size: 12px; padding: 5px 10px; text-align: left;
     color: var(--route-3); border-color: var(--route-3); background: transparent;
   }
-  .draft .fix b { color: var(--ink); font-weight: 600; }
+  .draft .fix b, .item .fix b { color: var(--ink); font-weight: 600; }
+  .item .fix { margin-top: 6px; }
   .draft.off { opacity: .4; }
 
   .note {
@@ -1204,7 +1205,7 @@ function normalizeName(name) {
 }
 
 // 組み立てた日付とコミット。不具合の報告に添えてもらうための目印。
-const BUILD = "2026-08-23-c90de85";
+const BUILD = "2026-08-23-62579fb";
 
 // ===========================================================================
 // 保存
@@ -1431,16 +1432,21 @@ function renderList() {
           return a.order - b.order;
         });
         const index = categoryIndex(category);
-        const rows = items.map((item) => `
+        const rows = items.map((item) => {
+          // 分数の読み違いは、リストにしてからでも気づける場所に出す。
+          const suspect = showQuantity(item) && !item.checked ? suspectFraction(item.quantity) : null;
+          return `
           <div class="item ${item.checked ? "on" : ""}" data-id="${item.id}">
             <span class="box">✓</span>
             <span class="body">
               <span class="name">${escapeHtml(item.name)}</span>
               ${showQuantity(item) ? `<span class="qty num"> — ${escapeHtml(item.quantity)}</span>` : ""}
               ${item.recipes?.length ? `<div class="from">${escapeHtml(item.recipes.join("・"))}</div>` : ""}
+              ${suspect ? `<button class="fix" data-fix="${item.id}" data-value="${escapeHtml(suspect)}">分数の読み違いかも　<b class="num">${escapeHtml(suspect)}</b> に直す</button>` : ""}
             </span>
             <button class="kill" data-kill="${item.id}" aria-label="削除">✕</button>
-          </div>`).join("");
+          </div>`;
+        }).join("");
 
         return `
           <div class="section-head">
@@ -1462,9 +1468,21 @@ function renderList() {
         番号は売り場を回る順です
       </p>`;
 
+    app.querySelectorAll("[data-fix]").forEach((button) => {
+      button.onclick = (event) => {
+        event.stopPropagation();
+        const item = list.items.find((i) => i.id === button.dataset.fix);
+        item.quantity = button.dataset.value;
+        save();
+        renderList();
+        toast("分量を直しました");
+      };
+    });
+
     app.querySelectorAll(".item").forEach((row) => {
       row.onclick = (event) => {
         if (event.target.dataset.kill) return;
+        if (event.target.closest("[data-fix]")) return;
         const item = list.items.find((i) => i.id === row.dataset.id);
         item.checked = !item.checked;
         save();
