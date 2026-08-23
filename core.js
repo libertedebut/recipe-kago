@@ -529,7 +529,7 @@ const MARKER_PATTERN = /^[●○◯◎▲△▼■□★☆・※＊*+\-–—:�
 
 // 「A｜トマト缶」「A しょうがのせん切り」の A は、合わせ調味料をまとめる記号であって
 // 材料名ではない。1文字のアルファベットに区切り記号が続く形だけを落とす。
-const GROUP_MARKER = /^[A-Za-zＡ-Ｚａ-ｚ][｜|:：\s]\s*/;
+const GROUP_MARKER = /^(?:[A-Za-zＡ-Ｚａ-ｚ][｜|:：\s]\s*|[A-EＡ-Ｅ](?=[ぁ-んァ-ヶ一-龠]))/;
 
 function stripMarkers(text) {
   let result = text.replace(MARKER_PATTERN, "").trim();
@@ -746,6 +746,33 @@ export function mergeIngredients(ingredients) {
     const diff = categoryIndex(a.category) - categoryIndex(b.category);
     return diff !== 0 ? diff : a.name.localeCompare(b.name, "ja");
   });
+}
+
+/**
+ * 「½缶」が「12缶」と読まれるように、分数記号は写真から読み取ると
+ * 数字2つになることがある。その形に当てはまる分量を返す。
+ *
+ * 本当に12個ということもあるので、勝手には直さない。画面で知らせて選ばせる。
+ * gやmlのような計量の単位は、分数で書かれることがないので対象にしない。
+ */
+const FRACTION_LOOKALIKE = new Set([12, 13, 14, 15, 16, 18, 23, 25, 34, 35, 38, 45, 56, 58, 78]);
+const COUNTABLE_UNITS = [
+  "個", "本", "枚", "束", "玉", "房", "缶", "袋", "パック", "かけ", "切れ",
+  "尾", "丁", "株", "片", "杯", "膳", "節", "袋",
+];
+
+export function suspectFraction(quantity) {
+  const text = normalizeText(quantity ?? "");
+  const match = text.match(/^(大さじ|小さじ|カップ)?([1-9][0-9])(.*)$/);
+  if (!match) return null;
+
+  const prefix = match[1] ?? "";
+  const digits = match[2];
+  const rest = match[3];
+  if (!FRACTION_LOOKALIKE.has(Number(digits))) return null;
+  if (!prefix && !COUNTABLE_UNITS.some((unit) => rest.startsWith(unit))) return null;
+
+  return `${prefix}${digits[0]}/${digits[1]}${rest}`;
 }
 
 /** 表記ゆれを吸収してから同じ材料かどうか判定する。 */

@@ -240,6 +240,11 @@
     flex: none; width: 108px;
   }
   .draft .box { margin-top: 6px; cursor: pointer; }
+  .draft .fix {
+    align-self: flex-start; font-size: 12px; padding: 5px 10px; text-align: left;
+    color: var(--route-3); border-color: var(--route-3); background: transparent;
+  }
+  .draft .fix b { color: var(--ink); font-weight: 600; }
   .draft.off { opacity: .4; }
 
   .note {
@@ -799,7 +804,10 @@ function renderDraft() {
     .join("");
 
   const sections = draft.recipes.map((recipe, index) => {
-    const rows = recipe.rows.map((row) => `
+    const rows = recipe.rows.map((row) => {
+      // 「½缶」が「12缶」と読まれることがある。当てはまる行だけ知らせて、押せば直る。
+      const suspect = row.use ? suspectFraction(row.quantity) : null;
+      return `
       <div class="draft ${row.use ? "" : "off"}" data-id="${row.id}">
         <button class="box" data-use="${row.id}" aria-label="この材料を使う"
                 style="${row.use ? "background:var(--accent);border-color:var(--accent);color:var(--accent-ink)" : ""}">✓</button>
@@ -809,8 +817,10 @@ function renderDraft() {
             <input type="text" class="num" value="${escapeHtml(row.quantity)}" data-field="quantity" placeholder="分量" aria-label="分量">
             <select data-field="category" aria-label="売り場">${options(row.category)}</select>
           </div>
+          ${suspect ? `<button class="fix" data-fix="${row.id}" data-value="${escapeHtml(suspect)}">分数の読み違いかも　<b class="num">${escapeHtml(suspect)}</b> に直す</button>` : ""}
         </div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
 
     return `
       ${recipe.warn ? `<div class="note">「材料」の見出しが見つからなかったので、全体から拾いました。余分なものが混ざっていないか確認してください。</div>` : ""}
@@ -834,6 +844,13 @@ function renderDraft() {
     button.onclick = () => {
       const row = findRow(button.dataset.use);
       row.use = !row.use;
+      renderDraft();
+    };
+  });
+
+  area.querySelectorAll("[data-fix]").forEach((button) => {
+    button.onclick = () => {
+      findRow(button.dataset.fix).quantity = button.dataset.value;
       renderDraft();
     };
   });
