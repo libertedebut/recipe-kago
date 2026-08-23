@@ -1080,7 +1080,7 @@ function normalizeName(name) {
 }
 
 // 組み立てた日付とコミット。不具合の報告に添えてもらうための目印。
-const BUILD = "2026-08-23-5aa6cfe";
+const BUILD = "2026-08-23-32ad939";
 
 // ===========================================================================
 // 保存
@@ -1115,10 +1115,22 @@ const state = {
   sheet: null,
 };
 
+// 調味料は「家にあるか」だけ分かればよく、買い物中に分量は見ない。
+// 既定では隠す。作る分量を確かめたい人のために切り替えは残す。
+state.data.settings ??= {};
+state.data.settings.seasoningQuantity ??= false;
+
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 function currentList() {
   return state.data.lists.find((l) => l.id === state.listId) ?? null;
+}
+
+/** 買い物リストでその分量を出すかどうか。調味料は既定で出さない。 */
+function showQuantity(item) {
+  if (!item.quantity) return false;
+  if (item.category !== "調味料") return true;
+  return state.data.settings.seasoningQuantity;
 }
 
 function defaultName(existing) {
@@ -1300,7 +1312,7 @@ function renderList() {
             <span class="box">✓</span>
             <span class="body">
               <span class="name">${escapeHtml(item.name)}</span>
-              ${item.quantity ? `<span class="qty num"> — ${escapeHtml(item.quantity)}</span>` : ""}
+              ${showQuantity(item) ? `<span class="qty num"> — ${escapeHtml(item.quantity)}</span>` : ""}
               ${item.recipes?.length ? `<div class="from">${escapeHtml(item.recipes.join("・"))}</div>` : ""}
             </span>
             <button class="kill" data-kill="${item.id}" aria-label="削除">✕</button>
@@ -1381,6 +1393,7 @@ function openListMenu() {
   const list = currentList();
   const back = sheet(list.name, `
     <button id="m-rename">名前を変更</button>
+    <button id="m-season">${state.data.settings.seasoningQuantity ? "調味料の分量を隠す" : "調味料の分量を表示する"}</button>
     <button id="m-recalc">分量を計算し直す</button>
     <button id="m-copy">リストをコピー</button>
     <button id="m-clear">チェック済みを削除</button>
@@ -1404,6 +1417,13 @@ function openListMenu() {
       input.remove();
       renderList();
     };
+  };
+
+  back.querySelector("#m-season").onclick = () => {
+    state.data.settings.seasoningQuantity = !state.data.settings.seasoningQuantity;
+    save();
+    close();
+    renderList();
   };
 
   back.querySelector("#m-recalc").onclick = () => {
