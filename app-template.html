@@ -1,0 +1,976 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="レシピかご">
+<meta name="theme-color" content="#eef2ec">
+<title>レシピかご</title>
+
+<style>
+  /* 明るいほうを基準に全色を定義する。暗いほうは値だけ差し替える。 */
+  :root {
+    --ground: #eef2ec;
+    --surface: #ffffff;
+    --surface-sunk: #f5f8f4;
+    --ink: #16211b;
+    --ink-soft: #4a5a51;
+    --ink-faint: #7d8c83;
+    --line: #dbe3d9;
+    --line-strong: #c3cfc0;
+    --accent: #2c7a50;
+    --accent-soft: #e2efe7;
+    --accent-ink: #ffffff;
+    --shadow: 0 1px 2px rgba(22, 33, 27, .06), 0 8px 24px rgba(22, 33, 27, .05);
+    --radius: 14px;
+    --route-1: #4f9e4f;
+    --route-2: #b5563f;
+    --route-3: #b08a2e;
+    --route-4: #3f7d94;
+    --route-5: #6a6f8c;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f1411;
+      --surface: #171e19;
+      --surface-sunk: #131a16;
+      --ink: #e9eee8;
+      --ink-soft: #a8b6ac;
+      --ink-faint: #7e8d84;
+      --line: #26302a;
+      --line-strong: #34413a;
+      --accent: #5fbf87;
+      --accent-soft: #1d2c24;
+      --accent-ink: #0f1411;
+      --shadow: none;
+      --route-1: #7cc47c;
+      --route-2: #e08a72;
+      --route-3: #d9b45c;
+      --route-4: #74b0c6;
+      --route-5: #9b9fbd;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0f1411;
+    --surface: #171e19;
+    --surface-sunk: #131a16;
+    --ink: #e9eee8;
+    --ink-soft: #a8b6ac;
+    --ink-faint: #7e8d84;
+    --line: #26302a;
+    --line-strong: #34413a;
+    --accent: #5fbf87;
+    --accent-soft: #1d2c24;
+    --accent-ink: #0f1411;
+    --shadow: none;
+    --route-1: #7cc47c;
+    --route-2: #e08a72;
+    --route-3: #d9b45c;
+    --route-4: #74b0c6;
+    --route-5: #9b9fbd;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+                 "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .num {
+    /* 端末に元からある等幅書体だけを使う。外部から何も読み込まないため。 */
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+  }
+
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 96px; }
+
+  /* --- ヘッダー --- */
+
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    max-width: 560px; margin: 0 auto; padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px; min-height: 56px;
+  }
+  .bar h1 {
+    font-size: 17px; font-weight: 700; margin: 0; flex: 1;
+    letter-spacing: .01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bar .sub { font-size: 12px; color: var(--ink-faint); font-weight: 400; }
+
+  /* --- ボタン --- */
+
+  button {
+    font: inherit; cursor: pointer; border-radius: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface);
+    color: var(--ink); padding: 8px 14px; transition: background .12s ease;
+  }
+  button:hover { background: var(--surface-sunk); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary {
+    background: var(--accent); color: var(--accent-ink);
+    border-color: transparent; font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(1.06); }
+  button.ghost { background: transparent; border-color: transparent; color: var(--accent); padding: 8px 10px; }
+  button.icon {
+    width: 38px; height: 38px; padding: 0; display: grid; place-items: center;
+    font-size: 19px; line-height: 1; border-radius: 999px;
+  }
+  button.danger { color: var(--route-2); }
+  button:disabled { opacity: .4; cursor: default; }
+
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row-actions button { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+
+  /* --- カード --- */
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .pad { padding: 16px; }
+
+  /* --- リスト一覧 --- */
+
+  .list-row {
+    display: block; width: 100%; text-align: left; padding: 14px 16px;
+    border: none; border-radius: 0; background: transparent;
+  }
+  .list-row + .list-row { border-top: 1px solid var(--line); }
+  .list-row:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+  .list-row:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+  .list-row .title { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .list-row .menu { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .list-row .meta { font-size: 12px; color: var(--ink-faint); margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+
+  .track { flex: 1; height: 4px; background: var(--surface-sunk); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+  .track i { display: block; height: 100%; background: var(--accent); }
+
+  .done-badge { color: var(--accent); font-size: 13px; }
+
+  /* --- 献立 --- */
+
+  .menu-card { padding: 14px 16px; }
+  .menu-card h2 { font-size: 12px; letter-spacing: .08em; color: var(--ink-faint); margin: 0 0 8px; font-weight: 600; }
+  .menu-card ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .menu-card li { font-size: 14px; display: flex; gap: 8px; }
+  .menu-card li::before { content: "―"; color: var(--ink-faint); }
+
+  /* --- 売り場（カテゴリ） --- */
+
+  .section-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 22px 4px 8px;
+  }
+  .route {
+    font-size: 11px; font-weight: 700; width: 20px; height: 20px;
+    display: grid; place-items: center; border-radius: 999px;
+    color: var(--accent-ink); flex: none; align-self: center;
+  }
+  .section-head h2 { font-size: 15px; margin: 0; font-weight: 700; flex: 1; }
+  .section-head .count { font-size: 12px; color: var(--ink-faint); }
+
+  /* --- 品目 --- */
+
+  .item {
+    display: flex; width: 100%; gap: 12px; padding: 13px 16px; text-align: left;
+    border: none; border-radius: 0; background: transparent; align-items: flex-start;
+  }
+  .item + .item { border-top: 1px solid var(--line); }
+  .box {
+    width: 24px; height: 24px; border-radius: 999px; flex: none; margin-top: 1px;
+    border: 2px solid var(--line-strong); display: grid; place-items: center;
+    color: transparent; font-size: 13px; transition: all .12s ease;
+  }
+  .item.on .box { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .item .body { flex: 1; min-width: 0; }
+  .item .name { font-weight: 600; }
+  .item .qty { color: var(--ink-soft); font-weight: 500; }
+  .item .from { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+  .item.on .name, .item.on .qty { text-decoration: line-through; color: var(--ink-faint); font-weight: 400; }
+  .item .kill { color: var(--ink-faint); font-size: 15px; padding: 2px 4px; border: none; background: none; align-self: center; }
+
+  /* --- 空の状態 --- */
+
+  .empty { text-align: center; padding: 44px 24px; color: var(--ink-soft); }
+  .empty .mark { font-size: 34px; }
+  .empty h2 { font-size: 16px; margin: 12px 0 6px; color: var(--ink); }
+  .empty p { margin: 0 0 18px; font-size: 14px; }
+
+  /* --- 取り込み --- */
+
+  textarea, input[type="text"] {
+    font: inherit; width: 100%; color: var(--ink);
+    background: var(--surface-sunk); border: 1px solid var(--line-strong);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  textarea { min-height: 190px; resize: vertical; line-height: 1.5; }
+  textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  label { font-size: 12px; color: var(--ink-faint); font-weight: 600; letter-spacing: .04em; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+
+  .steps { margin: 0; padding-left: 1.2em; font-size: 13.5px; color: var(--ink-soft); }
+  .steps li { margin-bottom: 4px; }
+  .steps b { color: var(--ink); }
+
+  .draft { display: flex; gap: 10px; padding: 12px; align-items: flex-start; }
+  .draft + .draft { border-top: 1px solid var(--line); }
+  .draft input[type="text"] { padding: 8px 10px; }
+  .draft .fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .draft .sub { display: flex; gap: 8px; }
+  .draft .sub input { flex: 1; min-width: 0; }
+  .draft select {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--surface-sunk);
+    border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 6px;
+    flex: none; width: 108px;
+  }
+  .draft .box { margin-top: 6px; cursor: pointer; }
+  .draft.off { opacity: .4; }
+
+  .note {
+    font-size: 13px; color: var(--ink-soft); background: var(--accent-soft);
+    border-radius: 10px; padding: 10px 12px;
+  }
+
+  .bottom {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: color-mix(in srgb, var(--ground) 92%, transparent);
+    backdrop-filter: blur(12px); border-top: 1px solid var(--line);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .bottom .inner { max-width: 560px; margin: 0 auto; display: flex; gap: 10px; }
+  .bottom button { flex: 1; padding: 12px 10px; white-space: nowrap; }
+
+  .sheet-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 40;
+    display: grid; place-items: end center; padding: 16px;
+  }
+  .sheet {
+    background: var(--surface); border-radius: 16px; padding: 16px;
+    width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .sheet h2 { margin: 0; font-size: 16px; }
+
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 50;
+    background: var(--ink); color: var(--ground); padding: 9px 16px; border-radius: 999px;
+    font-size: 13.5px; box-shadow: 0 6px 20px rgba(0,0,0,.2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<header>
+  <div class="bar" id="bar"></div>
+</header>
+
+<main class="wrap" id="app"></main>
+<div id="overlay"></div>
+
+<script>
+/*__CORE__*/
+
+// ===========================================================================
+// 保存
+// ===========================================================================
+
+const STORAGE_KEY = "recipe-kago.v1";
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { lists: [] };
+    const data = JSON.parse(raw);
+    return Array.isArray(data.lists) ? data : { lists: [] };
+  } catch {
+    return { lists: [] };
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  } catch {
+    toast("保存できませんでした。ブラウザの空き容量を確認してください");
+  }
+}
+
+const state = {
+  data: load(),
+  screen: "home",
+  listId: null,
+  draft: null,
+  sheet: null,
+};
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+function currentList() {
+  return state.data.lists.find((l) => l.id === state.listId) ?? null;
+}
+
+function defaultName(existing) {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const base = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (!existing.includes(base)) return base;
+  return `${base} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+// ===========================================================================
+// 画面の部品
+// ===========================================================================
+
+const ROUTE_COLORS = ["var(--route-1)", "var(--route-2)", "var(--route-3)", "var(--route-4)", "var(--route-5)"];
+
+function el(html) {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function toast(message) {
+  document.querySelectorAll(".toast").forEach((t) => t.remove());
+  const node = el(`<div class="toast">${escapeHtml(message)}</div>`);
+  document.body.appendChild(node);
+  setTimeout(() => node.remove(), 2600);
+}
+
+/** こんだては「読み込んだ順」で見せたいので、リストに順番を持たせておく。 */
+function listMenu(list) {
+  const used = new Set(list.items.flatMap((i) => i.recipes ?? []));
+  const ordered = (list.menu ?? []).filter((name) => used.has(name));
+  const rest = [...used].filter((name) => !ordered.includes(name));
+  return [...ordered, ...rest];
+}
+
+// ===========================================================================
+// 画面: リスト一覧
+// ===========================================================================
+
+function renderHome() {
+  document.getElementById("bar").innerHTML = `
+    <h1>レシピかご</h1>
+    <button class="primary" id="new-list">新しいリスト</button>`;
+
+  const app = document.getElementById("app");
+
+  if (state.data.lists.length === 0) {
+    app.innerHTML = `
+      <div class="empty card" style="margin-top:16px">
+        <div class="mark">🧺</div>
+        <h2>まだリストがありません</h2>
+        <p>レシピの文章を貼り付けると、<br>買うものだけを取り出してまとめます。</p>
+        <button class="primary" id="new-list-2">最初のリストを作る</button>
+      </div>
+      ${howtoCard()}`;
+    app.querySelector("#new-list-2").onclick = createList;
+  } else {
+    const rows = state.data.lists.map((list) => {
+      const total = list.items.length;
+      const done = list.items.filter((i) => i.checked).length;
+      const percent = total ? Math.round((done / total) * 100) : 0;
+      const menu = listMenu(list).join("・");
+      return `
+        <button class="list-row" data-id="${list.id}">
+          <div class="title">
+            ${escapeHtml(list.name)}
+            ${total > 0 && done === total ? '<span class="done-badge">✓ 完了</span>' : ""}
+          </div>
+          ${menu ? `<div class="menu">${escapeHtml(menu)}</div>` : ""}
+          <div class="meta">
+            <span class="track"><i style="width:${percent}%"></i></span>
+            <span class="num">${done} / ${total}</span>
+          </div>
+        </button>`;
+    }).join("");
+
+    app.innerHTML = `<div class="card" style="margin-top:16px">${rows}</div>${howtoCard()}`;
+    app.querySelectorAll(".list-row").forEach((row) => {
+      row.onclick = () => { state.listId = row.dataset.id; go("list"); };
+    });
+  }
+
+  document.getElementById("new-list").onclick = createList;
+}
+
+function howtoCard() {
+  return `
+    <div class="card pad" style="margin-top:16px">
+      <label>写真から取り込む（いちばん速い）</label>
+      <ol class="steps" style="margin-top:8px">
+        <li>写真アプリで<b>レシピの写真を複数選ぶ</b></li>
+        <li>共有ボタン → <b>ショートカット「レシピかごに送る」</b></li>
+        <li>材料が取り出された状態でこの画面が開きます</li>
+      </ol>
+      <p style="font-size:13px;color:var(--ink-faint);margin:10px 0 0">
+        ショートカットは最初に1回だけ入れます。読み取りはiPhoneの中で行われます。
+      </p>
+    </div>
+
+    <div class="card pad" style="margin-top:12px">
+      <label>貼り付けて取り込む</label>
+      <ol class="steps" style="margin-top:8px">
+        <li>レシピのページをSafariで開き、<b>文章をコピー</b>します</li>
+        <li>このアプリで<b>貼り付ける</b>と、材料と分量だけを取り出します</li>
+        <li>同じ材料は<b>自動で合計</b>されます（大さじ1＋大さじ2＝大さじ3）</li>
+      </ol>
+      <p style="font-size:13px;color:var(--ink-faint);margin:12px 0 0">
+        通信は一切しません。書いたものはこの端末の中だけに残ります。
+      </p>
+    </div>`;
+}
+
+function createList() {
+  const list = {
+    id: uid(),
+    name: defaultName(state.data.lists.map((l) => l.name)),
+    createdAt: Date.now(),
+    items: [],
+  };
+  state.data.lists.unshift(list);
+  save();
+  state.listId = list.id;
+  go("list");
+}
+
+// ===========================================================================
+// 画面: リスト詳細
+// ===========================================================================
+
+function renderList() {
+  const list = currentList();
+  if (!list) return go("home");
+
+  const done = list.items.filter((i) => i.checked).length;
+
+  document.getElementById("bar").innerHTML = `
+    <button class="icon" id="back" aria-label="戻る">‹</button>
+    <h1>${escapeHtml(list.name)}
+      <div class="sub num">${done} / ${list.items.length} 個</div>
+    </h1>
+    <button class="icon" id="more" aria-label="メニュー">⋯</button>`;
+
+  const app = document.getElementById("app");
+
+  if (list.items.length === 0) {
+    app.innerHTML = `
+      <div class="empty card" style="margin-top:16px">
+        <div class="mark">🧾</div>
+        <h2>リストは空です</h2>
+        <p>レシピの文章を貼り付けて、<br>買うものを取り出しましょう。</p>
+        <button class="primary" id="add-recipe">レシピを貼り付ける</button>
+      </div>`;
+  } else {
+    const menu = listMenu(list);
+    const groups = new Map();
+    for (const item of list.items) {
+      if (!groups.has(item.category)) groups.set(item.category, []);
+      groups.get(item.category).push(item);
+    }
+
+    const sections = CATEGORIES
+      .filter((category) => groups.has(category))
+      .map((category) => {
+        const items = groups.get(category).sort((a, b) => {
+          if (a.checked !== b.checked) return a.checked ? 1 : -1;
+          return a.order - b.order;
+        });
+        const index = categoryIndex(category);
+        const rows = items.map((item) => `
+          <div class="item ${item.checked ? "on" : ""}" data-id="${item.id}">
+            <span class="box">✓</span>
+            <span class="body">
+              <span class="name">${escapeHtml(item.name)}</span>
+              ${item.quantity ? `<span class="qty num"> — ${escapeHtml(item.quantity)}</span>` : ""}
+              ${item.recipes?.length ? `<div class="from">${escapeHtml(item.recipes.join("・"))}</div>` : ""}
+            </span>
+            <button class="kill" data-kill="${item.id}" aria-label="削除">✕</button>
+          </div>`).join("");
+
+        return `
+          <div class="section-head">
+            <span class="route num" style="background:${ROUTE_COLORS[index] ?? "var(--ink-faint)"}">${index + 1}</span>
+            <h2>${escapeHtml(category)}</h2>
+            <span class="count num">${items.filter((i) => !i.checked).length} / ${items.length}</span>
+          </div>
+          <div class="card">${rows}</div>`;
+      }).join("");
+
+    app.innerHTML = `
+      ${menu.length ? `
+        <div class="card menu-card" style="margin-top:16px">
+          <h2>こんだて</h2>
+          <ul>${menu.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>
+        </div>` : ""}
+      ${sections}
+      <p style="font-size:12px;color:var(--ink-faint);text-align:center;margin-top:22px">
+        番号は売り場を回る順です
+      </p>`;
+
+    app.querySelectorAll(".item").forEach((row) => {
+      row.onclick = (event) => {
+        if (event.target.dataset.kill) return;
+        const item = list.items.find((i) => i.id === row.dataset.id);
+        item.checked = !item.checked;
+        save();
+        renderList();
+      };
+    });
+    app.querySelectorAll("[data-kill]").forEach((button) => {
+      button.onclick = () => {
+        list.items = list.items.filter((i) => i.id !== button.dataset.kill);
+        save();
+        renderList();
+      };
+    });
+  }
+
+  document.getElementById("back").onclick = () => go("home");
+  document.getElementById("more").onclick = openListMenu;
+  app.querySelector("#add-recipe")?.addEventListener("click", () => go("import"));
+
+  renderBottom(`
+    <button class="primary" id="b-recipe">レシピを貼り付ける</button>
+    <button id="b-one">1品だけ追加</button>`);
+  document.getElementById("b-recipe").onclick = () => go("import");
+  document.getElementById("b-one").onclick = openAddOne;
+}
+
+function renderBottom(html) {
+  const bar = el(`<div class="bottom"><div class="inner">${html}</div></div>`);
+  document.getElementById("overlay").appendChild(bar);
+}
+
+// ===========================================================================
+// メニュー
+// ===========================================================================
+
+function sheet(title, bodyHtml) {
+  const back = el(`
+    <div class="sheet-back">
+      <div class="sheet">
+        <h2>${escapeHtml(title)}</h2>
+        ${bodyHtml}
+      </div>
+    </div>`);
+  back.onclick = (event) => { if (event.target === back) back.remove(); };
+  document.body.appendChild(back);
+  return back;
+}
+
+function openListMenu() {
+  const list = currentList();
+  const back = sheet(list.name, `
+    <button id="m-rename">名前を変更</button>
+    <button id="m-recalc">分量を計算し直す</button>
+    <button id="m-copy">リストをコピー</button>
+    <button id="m-clear">チェック済みを削除</button>
+    <button class="danger" id="m-delete">このリストを削除</button>
+    <button class="ghost" id="m-close">閉じる</button>`);
+
+  const close = () => back.remove();
+  back.querySelector("#m-close").onclick = close;
+
+  back.querySelector("#m-rename").onclick = () => {
+    close();
+    const input = sheet("名前を変更", `
+      <input type="text" id="r-name" value="${escapeHtml(list.name)}">
+      <div class="row-actions"><button class="primary" id="r-ok" style="flex:1">保存</button></div>`);
+    const field = input.querySelector("#r-name");
+    field.focus();
+    field.select();
+    input.querySelector("#r-ok").onclick = () => {
+      const value = field.value.trim();
+      if (value) { list.name = value; save(); }
+      input.remove();
+      renderList();
+    };
+  };
+
+  back.querySelector("#m-recalc").onclick = () => {
+    const merged = mergeIngredients(list.items.map((i) => ({
+      name: i.name, quantity: i.quantity, category: i.category, recipes: i.recipes ?? [],
+    })));
+    const checked = new Set(list.items.filter((i) => i.checked).map((i) => normalizeName(i.name)));
+    list.items = merged.map((item, index) => ({
+      id: uid(), ...item, checked: checked.has(normalizeName(item.name)), order: index,
+    }));
+    save();
+    close();
+    renderList();
+    toast("分量を計算し直しました");
+  };
+
+  back.querySelector("#m-copy").onclick = async () => {
+    const text = [
+      list.name,
+      ...CATEGORIES.filter((c) => list.items.some((i) => i.category === c)).flatMap((category) => [
+        "",
+        `[${category}]`,
+        ...list.items.filter((i) => i.category === category)
+          .map((i) => `${i.checked ? "✓" : "・"} ${i.name}${i.quantity ? `（${i.quantity}）` : ""}`),
+      ]),
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("コピーしました");
+    } catch {
+      toast("コピーできませんでした");
+    }
+    close();
+  };
+
+  back.querySelector("#m-clear").onclick = () => {
+    list.items = list.items.filter((i) => !i.checked);
+    save();
+    close();
+    renderList();
+  };
+
+  back.querySelector("#m-delete").onclick = () => {
+    state.data.lists = state.data.lists.filter((l) => l.id !== list.id);
+    save();
+    close();
+    go("home");
+  };
+}
+
+function openAddOne() {
+  const options = CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join("");
+  const back = sheet("1品だけ追加", `
+    <div class="field"><label>品名</label><input type="text" id="a-name" placeholder="トイレットペーパー"></div>
+    <div class="field"><label>分量（任意）</label><input type="text" id="a-qty" placeholder="1袋"></div>
+    <div class="field"><label>売り場</label><select id="a-cat" style="padding:9px">${options}</select></div>
+    <div class="row-actions">
+      <button class="ghost" id="a-cancel">キャンセル</button>
+      <button class="primary" id="a-ok" style="flex:1">追加</button>
+    </div>`);
+
+  const nameField = back.querySelector("#a-name");
+  const catField = back.querySelector("#a-cat");
+  nameField.focus();
+  nameField.oninput = () => { catField.value = categorize(nameField.value); };
+
+  back.querySelector("#a-cancel").onclick = () => back.remove();
+  back.querySelector("#a-ok").onclick = () => {
+    const name = nameField.value.trim();
+    if (!name) { nameField.focus(); return; }
+    addItems([{
+      name,
+      quantity: back.querySelector("#a-qty").value.trim(),
+      category: catField.value,
+      recipes: [],
+    }]);
+    back.remove();
+    renderList();
+  };
+}
+
+// ===========================================================================
+// 画面: レシピの取り込み
+// ===========================================================================
+
+function renderImport() {
+  document.getElementById("bar").innerHTML = `
+    <button class="icon" id="back" aria-label="戻る">‹</button>
+    <h1>レシピを貼り付ける</h1>`;
+
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <div class="stack" style="margin-top:16px">
+      <div class="card pad stack">
+        <div class="field">
+          <label>レシピの文章</label>
+          <textarea id="src" placeholder="レシピのページをSafariで開いて、材料のところを選択してコピー。ここに貼り付けてください。
+
+写真のレシピなら、写真の中の文字を長押しすると選択できます。"></textarea>
+        </div>
+        <div class="row-actions">
+          <button class="primary" id="run" style="flex:2 1 60%">材料を取り出す</button>
+          <button id="paste">貼り付け</button>
+        </div>
+      </div>
+      <div class="note">
+        「材料」から「作り方」までの間だけを読み取ります。広告や関連レシピが混ざっていても大丈夫です。
+      </div>
+    </div>
+    <div id="draft-area"></div>`;
+
+  document.getElementById("back").onclick = () => go("list");
+  document.getElementById("run").onclick = runExtract;
+
+  document.getElementById("paste").onclick = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        document.getElementById("src").value = text;
+        runExtract();
+      } else {
+        toast("クリップボードが空です");
+      }
+    } catch {
+      toast("読み取れませんでした。手で貼り付けてください");
+    }
+  };
+}
+
+/** ショートカットから複数のレシピをまとめて受け取るときの区切り。 */
+const RECIPE_SEPARATOR = "@@@RECIPE@@@";
+
+/** 文章を1つ以上のレシピに分けて、下書きの形にする。 */
+function buildDraft(raw) {
+  const chunks = raw.split(RECIPE_SEPARATOR).map((c) => c.trim()).filter(Boolean);
+
+  const recipes = chunks.map((chunk, index) => {
+    const recipe = extractRecipe(chunk, `レシピ ${index + 1}`);
+    return {
+      id: uid(),
+      dishName: recipe.dishName,
+      warn: !recipe.foundSection,
+      rows: recipe.ingredients.map((item) => ({ ...item, id: uid(), use: true })),
+    };
+  }).filter((recipe) => recipe.rows.length > 0);
+
+  return recipes.length > 0 ? { recipes } : null;
+}
+
+function runExtract() {
+  const raw = document.getElementById("src").value;
+  if (!raw.trim()) { toast("レシピの文章を貼り付けてください"); return; }
+
+  const draft = buildDraft(raw);
+
+  if (!draft) {
+    toast("材料を見つけられませんでした");
+    document.getElementById("draft-area").innerHTML = `
+      <div class="card pad" style="margin-top:12px">
+        <label>見つかりませんでした</label>
+        <ol class="steps" style="margin-top:8px">
+          <li><b>「材料」という見出しごと</b>コピーできているか確認してください</li>
+          <li>ページ全体をコピーしても構いません</li>
+          <li>それでも駄目なら、下の「1品だけ追加」から手で入れられます</li>
+        </ol>
+      </div>`;
+    return;
+  }
+
+  state.draft = draft;
+  renderDraft();
+}
+
+function findRow(id) {
+  for (const recipe of state.draft.recipes) {
+    const row = recipe.rows.find((r) => r.id === id);
+    if (row) return row;
+  }
+  return null;
+}
+
+function renderDraft() {
+  const draft = state.draft;
+  const many = draft.recipes.length > 1;
+  const options = (selected) => CATEGORIES
+    .map((c) => `<option value="${c}" ${c === selected ? "selected" : ""}>${c}</option>`)
+    .join("");
+
+  const sections = draft.recipes.map((recipe, index) => {
+    const rows = recipe.rows.map((row) => `
+      <div class="draft ${row.use ? "" : "off"}" data-id="${row.id}">
+        <button class="box" data-use="${row.id}" aria-label="この材料を使う"
+                style="${row.use ? "background:var(--accent);border-color:var(--accent);color:var(--accent-ink)" : ""}">✓</button>
+        <div class="fields">
+          <input type="text" value="${escapeHtml(row.name)}" data-field="name" aria-label="材料名">
+          <div class="sub">
+            <input type="text" class="num" value="${escapeHtml(row.quantity)}" data-field="quantity" placeholder="分量" aria-label="分量">
+            <select data-field="category" aria-label="売り場">${options(row.category)}</select>
+          </div>
+        </div>
+      </div>`).join("");
+
+    return `
+      ${recipe.warn ? `<div class="note">「材料」の見出しが見つからなかったので、全体から拾いました。余分なものが混ざっていないか確認してください。</div>` : ""}
+      <div class="card pad field">
+        <label>こんだて（料理名）${many ? ` — ${index + 1} / ${draft.recipes.length}` : ""}</label>
+        <input type="text" data-dish="${recipe.id}" value="${escapeHtml(recipe.dishName)}">
+      </div>
+      <div class="section-head" style="padding-bottom:4px">
+        <h2>取り出した材料</h2>
+        <span class="count num">${recipe.rows.filter((r) => r.use).length} / ${recipe.rows.length}</span>
+      </div>
+      <div class="card">${rows}</div>`;
+  }).join("");
+
+  document.getElementById("draft-area").innerHTML = `
+    <div class="stack" style="margin-top:16px">${sections}</div>`;
+
+  const area = document.getElementById("draft-area");
+
+  area.querySelectorAll("[data-use]").forEach((button) => {
+    button.onclick = () => {
+      const row = findRow(button.dataset.use);
+      row.use = !row.use;
+      renderDraft();
+    };
+  });
+
+  area.querySelectorAll(".draft").forEach((node) => {
+    const row = findRow(node.dataset.id);
+    node.querySelectorAll("[data-field]").forEach((input) => {
+      input.oninput = () => {
+        row[input.dataset.field] = input.value;
+        if (input.dataset.field === "name") {
+          const select = node.querySelector("[data-field=category]");
+          select.value = categorize(input.value);
+          row.category = select.value;
+        }
+      };
+    });
+  });
+
+  area.querySelectorAll("[data-dish]").forEach((input) => {
+    const recipe = draft.recipes.find((r) => r.id === input.dataset.dish);
+    input.oninput = () => { recipe.dishName = input.value; };
+  });
+
+  const total = draft.recipes.reduce((sum, r) => sum + r.rows.filter((x) => x.use).length, 0);
+
+  document.getElementById("overlay").innerHTML = "";
+  renderBottom(`
+    <button id="d-cancel">やめる</button>
+    <button class="primary" id="d-ok" style="flex:2">${total}品をリストに追加</button>`);
+
+  document.getElementById("d-cancel").onclick = () => { state.draft = null; go("list"); };
+  document.getElementById("d-ok").onclick = () => {
+    const chosen = draft.recipes.flatMap((recipe) => {
+      const dish = recipe.dishName.trim() || "レシピ";
+      return recipe.rows
+        .filter((r) => r.use && r.name.trim())
+        .map((r) => ({
+          name: r.name.trim(),
+          quantity: r.quantity.trim(),
+          category: r.category,
+          recipes: [dish],
+        }));
+    });
+
+    if (chosen.length === 0) { toast("追加する材料がありません"); return; }
+
+    addItems(chosen);
+    state.draft = null;
+    go("list");
+    toast(`${chosen.length}品を追加しました`);
+  };
+}
+
+/** 既存の品目と新しい材料をまとめ直して、リストを作り直す。 */
+function addItems(ingredients) {
+  const list = currentList();
+
+  list.menu ??= [];
+  for (const name of ingredients.flatMap((i) => i.recipes ?? [])) {
+    if (!list.menu.includes(name)) list.menu.push(name);
+  }
+
+  const existing = list.items.map((i) => ({
+    name: i.name, quantity: i.quantity, category: i.category, recipes: i.recipes ?? [],
+  }));
+  const checked = new Set(list.items.filter((i) => i.checked).map((i) => normalizeName(i.name)));
+
+  list.items = mergeIngredients([...existing, ...ingredients]).map((item, index) => ({
+    id: uid(),
+    ...item,
+    checked: checked.has(normalizeName(item.name)),
+    order: index,
+  }));
+  save();
+}
+
+// ===========================================================================
+// 画面の切り替え
+// ===========================================================================
+
+/**
+ * ショートカットから受け取る入り口。
+ *
+ * 「画像からテキストを抽出」で読んだ文章をBase64にして
+ * #r=... の形で渡してもらう。#より後ろはサーバーへ送られないので、
+ * この方法なら通信をせずに端末の中だけで受け渡しできる。
+ */
+function importFromHash() {
+  const match = location.hash.match(/[#&]r=([^&]+)/);
+  if (!match) return false;
+
+  // 一度読んだら消す。再読み込みで二重に取り込まないため。
+  history.replaceState(null, "", location.pathname + location.search);
+
+  let text;
+  try {
+    const base64 = decodeURIComponent(match[1]).replace(/\s/g, "");
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    text = new TextDecoder().decode(bytes);
+  } catch {
+    toast("受け取った内容を読めませんでした");
+    return false;
+  }
+
+  const draft = buildDraft(text);
+  if (!draft) {
+    toast("材料を見つけられませんでした");
+    return false;
+  }
+
+  // 今日のリストがあればそこへ、無ければ新しく作る。
+  const today = defaultName([]).slice(0, 10);
+  const existing = state.data.lists.find((l) => l.name.startsWith(today));
+  if (existing) {
+    state.listId = existing.id;
+  } else {
+    createList();
+  }
+
+  state.draft = draft;
+  state.screen = "import";
+  renderImport();
+  document.getElementById("src").value = text;
+  renderDraft();
+  return true;
+}
+
+function go(screen) {
+  state.screen = screen;
+  document.getElementById("overlay").innerHTML = "";
+  document.querySelectorAll(".sheet-back").forEach((s) => s.remove());
+  window.scrollTo(0, 0);
+
+  if (screen === "home") renderHome();
+  else if (screen === "list") renderList();
+  else if (screen === "import") renderImport();
+}
+
+if (!importFromHash()) go("home");
+</script>
