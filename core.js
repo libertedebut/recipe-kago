@@ -35,7 +35,18 @@ export function normalizeText(text) {
   for (const [symbol, replacement] of Object.entries(VULGAR_FRACTIONS)) {
     result = result.split(symbol).join(replacement);
   }
-  return result.split("　").join(" ").trim();
+  result = result.split("　").join(" ").trim();
+
+  // 写真から読むと「¼」が「¼/4」のように二重に出ることがある。前だけ残す。
+  result = result.replace(/(\d+\/\d+)\/\d+/g, "$1");
+  // 「大さじ1/」のように分母が欠けたもの。残った斜線を落とす。
+  result = result.replace(/\/\s*$/, "");
+  // 「1本(80g」のように閉じ括弧が読み取れないことがある。数が合えば補う。
+  const open = (result.match(/\(/g) ?? []).length;
+  const close = (result.match(/\)/g) ?? []).length;
+  if (open > close) result += ")".repeat(open - close);
+
+  return result.trim();
 }
 
 /**
@@ -79,10 +90,16 @@ const VAGUE_QUANTITIES = [
 const UNIT_ALIASES = {
   "コ": "個", "こ": "個", "ヶ": "個", "ケ": "個",
   "片": "かけ", "かけら": "かけ", "カケ": "かけ",
+  "切": "切れ", "きれ": "切れ",
   "グラム": "g", "きろ": "kg", "キロ": "kg", "キログラム": "kg",
   "cc": "ml", "ミリリットル": "ml", "リットル": "l", "ℓ": "l",
   "おおさじ": "大さじ", "こさじ": "小さじ",
 };
+
+/** 材料の量ではない単位。手順の文章を材料と取り違えないために使う。 */
+const TIME_AND_LENGTH_UNITS = [
+  "分", "秒", "時間", "時", "cm", "mm", "m", "度", "℃", "回", "人分", "人前",
+];
 
 /** 単位の末尾に付きやすい飾り。「1かけ分」＝「1かけ」。 */
 const UNIT_SUFFIXES = ["分", "程度", "くらい", "ぐらい", "ほど", "位", "弱", "強"];
@@ -337,7 +354,7 @@ const CATEGORY_KEYWORDS = [
     "ケチャップ", "オイスターソース", "ソース", "マヨネーズ", "からし", "わさび",
     "豆板醤", "コチュジャン", "はちみつ", "蜂蜜", "山椒", "七味", "一味", "カレー粉",
     "ナンプラー", "ベーキングパウダー", "重曹", "ドレッシング", "バジルソース",
-    "タバスコ", "ドライバジル", "バジル", "オレガノ", "ローリエ", "ナツメグ",
+    "タバスコ", "ドライバジル", "バジル", "パジル", "オレガノ", "ローリエ", "ナツメグ",
     "パセリ", "クミン", "チリパウダー", "スープのもと", "スープの素", "ブイヨン",
     "ウスターソース", "中濃ソース", "焼肉のたれ", "白ごま", "黒ごま", "すりごま",
     "いりごま", "ごま", "青のり", "かつお節", "こんぶ", "昆布", "酢橘", "レモン汁",
@@ -480,9 +497,46 @@ export function prepareRecipe(raw) {
   return {
     lines,
     title: title ?? guessTitle(lines, start),
-    sectionLines: lines.slice(start + 1, end),
+    sectionLines: [
+      ...lines.slice(start + 1, end),
+      ...recoverStrayIngredients(lines, end, searchEnd),
+    ],
     foundSection: end > start + 1,
   };
+}
+
+/**
+ * 「作り方」より後ろに取り残された材料を拾う。
+ *
+ * 雑誌の2段組を写真で読むと、材料欄の続きが作り方の後ろに回ることがある。
+ * 手順の文章を材料と取り違えないよう、短い行で、名前と分量に割れて、
+ * その分量が本物の単位を持つものだけを拾う。「4〜5分」は単位が残らないので入らない。
+ */
+function recoverStrayIngredients(lines, from, to) {
+  const found = [];
+
+  for (let i = from; i < to && i < lines.length; i++) {
+    const line = normalizeSeparators(lines[i]);
+    const length = [...line].length;
+    if (length < 3 || length > 24) continue;
+    if (line.endsWith("。")) continue;
+    if (isIngredientHeading(line) || isEndHeading(line)) continue;
+
+    const split = splitNameAndQuantity(line) ?? splitAttachedQuantity(line);
+    if (!split) continue;
+    if (!isIngredientName(stripMarkers(split.name))) continue;
+
+    const text = normalizeText(split.quantity);
+    const vague = VAGUE_QUANTITIES.some((v) => text.startsWith(v));
+    const amount = parseAmount(text);
+    if (!vague && !amount?.unit) continue;
+    // 「ふたをとって4〜5分」のような手順は、時間や長さの単位で見分けられる。
+    if (amount && TIME_AND_LENGTH_UNITS.includes(amount.unit)) continue;
+
+    found.push(lines[i]);
+  }
+
+  return found;
 }
 
 /** 料理名になりえない行。誌面の飾り文字やページ番号が紛れ込むのを防ぐ。 */
@@ -578,6 +632,8 @@ export function isQuantity(text) {
 function isIngredientName(name) {
   const length = [...name].length;
   if (!name || length > 30) return false;
+  // 「A」「B」は合わせ調味料をまとめる記号で、材料名ではない。
+  if (/^[A-Za-zＡ-Ｚａ-ｚ]$/.test(name)) return false;
   if (/[＜＞<>]/.test(name)) return false;
   if (name.includes("人分") || name.includes("人前")) return false;
   if (isQuantity(name)) return false;
@@ -602,8 +658,9 @@ export function parseIngredients(sectionLines) {
     pending = null;
   };
 
-  for (const rawLine of sectionLines) {
-    const line = normalizeSeparators(rawLine);
+  const lines = sectionLines.flatMap((raw) => splitGluedIngredients(normalizeSeparators(raw)));
+
+  for (const line of lines) {
     if (!line) continue;
 
     // 「＜香味だれ＞」のような小見出しは、材料ではないので区切りとして扱う。
@@ -647,12 +704,52 @@ export function parseIngredients(sectionLines) {
 
 /** 「鶏もも肉  1枚（約300g）」のような1行を、名前と分量に割る。 */
 function splitNameAndQuantity(line) {
-  const match = line.match(/^(.*?)[\s　\t]+(\S+)$/);
-  if (!match) return null;
+  // 「砂糖 大 1/2」のように分量そのものが空白を含むことがある。
+  // 右端の1語だけを見ると「大」が名前に残るので、左から順に区切りを試して、
+  // 後ろがまるごと分量として読める最初の位置で割る。
+  const parts = line.split(/[\s　\t]+/).filter(Boolean);
+  if (parts.length < 2) return null;
 
-  const [, name, quantity] = match;
-  if (!name.trim() || !isQuantity(quantity)) return null;
-  return { name: name.trim(), quantity: quantity.trim() };
+  for (let i = 1; i < parts.length; i++) {
+    const name = parts.slice(0, i).join(" ").trim();
+    const quantity = parts.slice(i).join(" ").trim();
+    if (name && isQuantity(quantity)) return { name, quantity };
+  }
+  return null;
+}
+
+/** 分量のあとに続けて次の材料が書かれた行を割るための単位。長いものから見る。 */
+const GLUE_UNITS = [
+  "大さじ", "小さじ", "カップ", "パック", "切れ", "かけ", "個", "本", "枚", "束",
+  "玉", "房", "缶", "袋", "尾", "丁", "株", "杯", "膳", "節", "合", "粒", "把",
+  "箱", "瓶", "kg", "ml", "cc", "g", "l",
+].sort((a, b) => b.length - a.length);
+
+const GLUE_STOP = ["分", "程度", "くらい", "ぐらい", "ほど", "位", "弱", "強"];
+
+const GLUE_PATTERN = new RegExp(
+  `[0-9]+(?:\\s*[0-9]+/[0-9]+)?(?:\\.[0-9]+)?(?:${GLUE_UNITS.join("|")})` +
+  `(?![0-9\\s（(）)])(?!${GLUE_STOP.join("|")})`,
+  "g",
+);
+
+/**
+ * 「鮭 2切れしいたけ 4個」のように、2つの材料が1行に混ざったものを割る。
+ *
+ * 雑誌の2段組を写真で読むと、隣の行が続きとしてつながることがある。
+ * 分量の直後に数字でも括弧でもない文字が来たら、そこが次の材料の始まり。
+ */
+function splitGluedIngredients(line) {
+  GLUE_PATTERN.lastIndex = 0;
+  for (const match of line.matchAll(GLUE_PATTERN)) {
+    const cut = match.index + match[0].length;
+    const head = line.slice(0, cut).trim();
+    const tail = line.slice(cut).trim();
+    if (!head || [...tail].length < 2) continue;
+    if (!splitNameAndQuantity(head) && !splitAttachedQuantity(head)) continue;
+    return [head, ...splitGluedIngredients(tail)];
+  }
+  return [line];
 }
 
 /**
@@ -699,8 +796,22 @@ function splitAttachedQuantity(line) {
 }
 
 /** 「玉ねぎ……1個」のような点線の区切りを、空白に直す。 */
+// 材料名と分量のあいだに置かれる記号。見た目は似ていても別の文字なので全部並べる。
+//   … U+2026 三点リーダー   ⋯ U+22EF 中央寄り三点   ‥ U+2025 二点リーダー
+//   ・ U+30FB 中黒          • U+2022 ビュレット      ･ U+FF65 半角中黒
+const SEPARATOR_RUN = /[…⋯‥•]+|[.．・･]{2,}|[:：]\s*/g;
+
+// 中黒がひとつだけの「玉ねぎ・1個」「塩・小さじ1」。
+// 「塩・こしょう」のような並列と区別するため、後ろが分量のときだけ区切りとみなす。
+const SINGLE_SEPARATOR =
+  /[・•･](?=[0-9]|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|大さじ|小さじ|カップ|[大小][0-9½⅓⅔¼¾]|各|適量|適宜|少々|少量)/g;
+
 function normalizeSeparators(line) {
-  return line.replace(/[…‥]+|[.．・]{2,}|[:：]\s*/g, " ").replace(/\s{2,}/g, " ").trim();
+  return line
+    .replace(SEPARATOR_RUN, " ")
+    .replace(SINGLE_SEPARATOR, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -782,6 +893,13 @@ export function suspectFraction(quantity) {
 }
 
 /** 表記ゆれを吸収してから同じ材料かどうか判定する。 */
+/** 写真から読むとよく入れ替わる字。同じ材料として扱えるように寄せる。 */
+const NAME_CONFUSIONS = { "鷄": "鶏", "麺": "麺", "パジル": "バジル", "プロッコリー": "ブロッコリー" };
+
 export function normalizeName(name) {
-  return String(name).trim().split(" ").join("").split("　").join("").toLowerCase();
+  let result = String(name).trim().split(" ").join("").split("　").join("").toLowerCase();
+  for (const [from, to] of Object.entries(NAME_CONFUSIONS)) {
+    result = result.split(from).join(to);
+  }
+  return result;
 }
