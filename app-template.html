@@ -252,6 +252,13 @@
     border-radius: 10px; padding: 10px 12px;
   }
 
+  .report { font-size: 12px; color: var(--ink-faint); line-height: 1.7; padding: 0 2px; }
+  .report .num { font-size: 11px; }
+  button.link {
+    display: inline; border: 0; background: none; padding: 0; font-size: inherit;
+    color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+  }
+
   .bottom {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
     background: color-mix(in srgb, var(--ground) 92%, transparent);
@@ -291,6 +298,9 @@
 
 <script>
 /*__CORE__*/
+
+// 組み立てた日付とコミット。不具合の報告に添えてもらうための目印。
+const BUILD = "__BUILD__";
 
 // ===========================================================================
 // 保存
@@ -723,11 +733,31 @@ function renderImport() {
       <div class="note">
         「材料」から「作り方」までの間だけを読み取ります。広告や関連レシピが混ざっていても大丈夫です。
       </div>
+      <p class="report">
+        うまく取り出せないときは <button class="link" id="copy-src">この文章をコピー</button> して、
+        どうなってほしかったかと一緒に知らせてください。直せます。<br>
+        <span class="num">版 ${BUILD}</span>
+      </p>
     </div>
     <div id="draft-area"></div>`;
 
   document.getElementById("back").onclick = () => go("list");
   document.getElementById("run").onclick = runExtract;
+
+  // 不具合の報告には、読み取られた文章そのものが要る。手で写させない。
+  document.getElementById("copy-src").onclick = async (event) => {
+    const text = document.getElementById("src").value.trim();
+    if (!text) return;
+    const label = event.target;
+    try {
+      await navigator.clipboard.writeText(`--- レシピかご 版 ${BUILD} ---\n${text}`);
+      label.textContent = "コピーしました";
+    } catch {
+      document.getElementById("src").select();
+      label.textContent = "選択しました（コピーを押してください）";
+    }
+    setTimeout(() => { label.textContent = "この文章をコピー"; }, 2500);
+  };
 
   document.getElementById("paste").onclick = async () => {
     try {
