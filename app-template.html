@@ -1061,6 +1061,33 @@ function importFromHash() {
   return true;
 }
 
+/**
+ * クリップボード経由で受け取る道。
+ *
+ * URLに載せる方法は手軽だが、長い文章だと途中で切れることがある。
+ * クリップボードには長さの制限がないので、切れて困る場面はこちらを使う。
+ * Safariは合図なしにクリップボードを読めないので、一度押してもらう形にする。
+ */
+function openClipboardImport() {
+  if (!/[#&]clip(\b|$)/.test(location.hash)) return false;
+  history.replaceState(null, "", location.pathname + location.search);
+
+  const today = defaultName([]).slice(0, 10);
+  const existing = state.data.lists.find((l) => l.name.startsWith(today));
+  if (existing) state.listId = existing.id;
+  else createList();
+
+  state.screen = "import";
+  renderImport();
+  document.getElementById("draft-area").innerHTML = `
+    <div class="card pad stack" style="margin-top:16px">
+      <p class="note">レシピの文章がコピーされています。下を押すと取り込みます。</p>
+      <button class="primary" id="from-clip">クリップボードから取り込む</button>
+    </div>`;
+  document.getElementById("from-clip").onclick = () => document.getElementById("paste").click();
+  return true;
+}
+
 function go(screen) {
   state.screen = screen;
   document.getElementById("overlay").innerHTML = "";
@@ -1072,5 +1099,5 @@ function go(screen) {
   else if (screen === "import") renderImport();
 }
 
-if (!importFromHash()) go("home");
+if (!importFromHash() && !openClipboardImport()) go("home");
 </script>
