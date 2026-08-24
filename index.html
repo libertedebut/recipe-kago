@@ -402,6 +402,9 @@ const TIME_AND_LENGTH_UNITS = [
   "cm", "mm", "m", "度", "℃", "回", "人分", "人前",
 ];
 
+/** 手順の文章に出てくる時間の単位。長さの cm などは材料にも使うので含めない。 */
+const TIME_UNITS = ["分", "秒", "時間", "時", "日", "週間", "か月", "ヶ月", "年"];
+
 /** レシピ情報の見出し。ページの飾りであって材料ではない。 */
 const NOT_INGREDIENT_NAMES = [
   "容量", "日持ち", "保存", "分量", "カロリー", "エネルギー", "塩分", "費用",
@@ -605,6 +608,18 @@ function mergeQuantities(quantities) {
     // 名前のある単位が1つだけなら、その単位のものとして数える。
     const named = order.filter(Boolean);
     if (named.length <= 1) return combine(amounts, named[0] ?? "");
+
+    // 「600g」と「2枚(550g)」のように単位が食い違うとき、
+    // 括弧の中に共通の単位が書いてあれば、そちらに揃えれば足せる。
+    const noteUnits = new Set(amounts.map((a) => a.note?.unit).filter(Boolean));
+    for (const unit of noteUnits) {
+      const converted = amounts.map((a) => {
+        if (a.unit === unit) return { value: a.value, unit, note: null };
+        if (a.note?.unit === unit) return { value: a.note.value, unit, note: null };
+        return null;
+      });
+      if (converted.every(Boolean)) return combine(converted, unit);
+    }
 
     // 単位が本当に違う場合でも、同じ単位どうしは足しておく（2個 + 4g など）。
     return order.map((unit) => combine(groups.get(unit), unit)).join(" + ");
@@ -970,6 +985,8 @@ function isIngredientName(name) {
   // 「A」「B」は合わせ調味料をまとめる記号で、材料名ではない。
   if (/^[A-Za-zＡ-Ｚａ-ｚ]$/.test(name)) return false;
   if (/[＜＞<>]/.test(name)) return false;
+  // 「す。鶏肉を皮目を下にして入れ、」のような手順の文章。材料名に句点は付かない。
+  if (name.includes("。")) return false;
   if (name.includes("人分") || name.includes("人前")) return false;
   if (isQuantity(name)) return false;
   return !["材料", "調味料", "作り方", "つくり方", "手順", "メモ"].includes(name);
@@ -983,6 +1000,13 @@ function isIngredientName(name) {
  *   2) 「鶏もも肉」の次の行に「1枚」が来る
  * どちらでも読めるようにしている。
  */
+/** 「20秒ほ」「4〜5分」のような時間。手順の文章に出てくるもので、材料の分量ではない。 */
+function isTimeQuantity(quantity) {
+  const amount = parseAmount(quantity);
+  if (!amount || !amount.unit) return false;
+  return TIME_UNITS.some((unit) => amount.unit.startsWith(unit));
+}
+
 function parseIngredients(sectionLines) {
   const results = [];
   let pending = null;
@@ -1007,7 +1031,8 @@ function parseIngredients(sectionLines) {
     // 行まるごとが分量なら、直前の名前に付ける。
     // これを先に見ないと、「大2」を「大」と「2」に割ってしまう。
     if (isQuantity(line)) {
-      if (pending) flush(line);
+      if (isTimeQuantity(line)) flush(null);
+      else if (pending) flush(line);
       continue;
     }
 
@@ -1016,6 +1041,7 @@ function parseIngredients(sectionLines) {
     const split = splitNameAndQuantity(line) ?? splitAttachedQuantity(line);
     if (split) {
       flush(null);
+      if (isTimeQuantity(split.quantity)) continue;
       const name = stripMarkers(split.name);
       if (isIngredientName(name)) results.push({ name, quantity: split.quantity });
       continue;
@@ -1242,7 +1268,7 @@ function normalizeName(name) {
 }
 
 // 組み立てた日付とコミット。不具合の報告に添えてもらうための目印。
-const BUILD = "2026-08-23-ebb954b";
+const BUILD = "2026-08-24-87e9e1e";
 
 // ===========================================================================
 // 保存

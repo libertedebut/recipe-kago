@@ -2,6 +2,7 @@
 
 import {
   mergeQuantities,
+  parseIngredients,
   extractRecipe,
   mergeIngredients,
   categorize,
@@ -323,6 +324,22 @@ check("範囲は多いほうを採る", on("大葉"), "5枚");
 check("ページ末の飾りを拾わない",
   String(site.ingredients.some((i) => ["容量", "冷蔵", "日持ち"].some((w) => i.name.includes(w)))), "false");
 check("◯◎の記号を外す", on("塩"), "小さじ1/2");
+
+// ---------------------------------------------------------------------------
+// ■ 作り置きサイトのPDFを7本まとめて取り込んだときに出た不具合
+// ---------------------------------------------------------------------------
+
+const prose = parseIngredients([
+  "す。鶏肉を皮目を下にして入れ、 20秒ほ",
+  "ふたをとって 4〜5分",
+  "鶏もも肉 2枚（550g）",
+]);
+check("手順の文章を材料にしない", String(prose.length), "1");
+check("残るのは材料だけ", prose[0]?.name ?? "-", "鶏もも肉");
+
+check("枚とgが混ざったら括弧の中に揃える", mergeQuantities(["600g", "2枚(550g)"]), "1150g");
+check("揃える単位がなければ並記のまま", mergeQuantities(["2個", "4g"]), "2個 + 4g");
+check("同じ単位の括弧は今までどおり", mergeQuantities(["1本(30g)", "1本(80g)"]), "2本(110g)");
 
 // ---------------------------------------------------------------------------
 console.log(failures === 0 ? "\n✅ すべて通りました\n" : `\n❌ ${failures}件 失敗\n`);
