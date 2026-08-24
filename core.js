@@ -915,7 +915,7 @@ export function mergeIngredients(ingredients) {
     const group = groups.get(key);
     const recipes = [...new Set(group.flatMap((i) => i.recipes ?? []))];
     return {
-      name: group[0].name,
+      name: displayName(key, group),
       quantity: mergeQuantities(group.map((i) => i.quantity)),
       category: group[0].category,
       recipes,
@@ -959,10 +959,67 @@ export function suspectFraction(quantity) {
 /** 写真から読むとよく入れ替わる字。同じ材料として扱えるように寄せる。 */
 const NAME_CONFUSIONS = { "鷄": "鶏", "麺": "麺", "パジル": "バジル", "プロッコリー": "ブロッコリー" };
 
+/**
+ * 書き方が違うだけで、買い物では同じもの。
+ *
+ * カタカナはひらがなに直してから照合するので、
+ * ここに書くのは「玉ねぎ／たまねぎ」のような漢字と仮名の違いだけでよい。
+ * 値のほうが画面に出る名前になる。
+ */
+const SAME_NAMES = {
+  // 野菜
+  "たまねぎ": "玉ねぎ", "玉葱": "玉ねぎ", "たま葱": "玉ねぎ",
+  "人参": "にんじん",
+  "長葱": "長ねぎ", "ながねぎ": "長ねぎ",
+  "葱": "ねぎ",
+  "じゃが芋": "じゃがいも", "馬鈴薯": "じゃがいも",
+  "さつま芋": "さつまいも",
+  "生姜": "しょうが",
+  "大蒜": "にんにく",
+  "こまつな": "小松菜",
+  "ほうれんそう": "ほうれん草",
+  "だいこん": "大根",
+  "はくさい": "白菜",
+  "茄子": "なす",
+  "胡瓜": "きゅうり",
+  "白ねぎ": "長ねぎ",
+
+  // 肉
+  "鳥もも肉": "鶏もも肉", "とりもも肉": "鶏もも肉", "鶏腿肉": "鶏もも肉",
+  "鶏胸肉": "鶏むね肉", "鳥むね肉": "鶏むね肉", "とりむね肉": "鶏むね肉",
+  "豚ばら肉": "豚バラ肉",
+
+  // 調味料など
+  "しょうゆ": "醤油", "しょう油": "醤油", "正油": "醤油",
+  "味噌": "みそ",
+  "胡麻油": "ごま油",
+  "胡麻": "ごま",
+  "味醂": "みりん",
+  "お酢": "酢",
+  "日本酒": "酒", "料理酒": "酒",
+  "胡椒": "こしょう",
+  "たまご": "卵", "玉子": "卵",
+  "とうふ": "豆腐",
+};
+
+/** 画面に出してよい名前（SAME_NAMES がまとめ先にしている書き方）。 */
+const CANONICAL_NAMES = new Set(Object.values(SAME_NAMES));
+
+/** カタカナをひらがなに直す。「タマネギ」と「たまねぎ」を同じものとして数えるため。 */
+function toHiragana(text) {
+  return text.replace(/[\u30A1-\u30F6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
 export function normalizeName(name) {
   let result = String(name).trim().split(" ").join("").split("　").join("").toLowerCase();
   for (const [from, to] of Object.entries(NAME_CONFUSIONS)) {
     result = result.split(from).join(to);
   }
-  return result;
+  result = toHiragana(result);
+  return SAME_NAMES[result] ?? result;
+}
+
+/** まとめたあとに画面へ出す名前。書き方が割れていたら、決めた側にそろえる。 */
+function displayName(key, group) {
+  return CANONICAL_NAMES.has(key) ? key : group[0].name;
 }

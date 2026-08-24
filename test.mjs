@@ -3,6 +3,7 @@
 import {
   mergeQuantities,
   parseIngredients,
+  normalizeName,
   extractRecipe,
   mergeIngredients,
   categorize,
@@ -340,6 +341,36 @@ check("残るのは材料だけ", prose[0]?.name ?? "-", "鶏もも肉");
 check("枚とgが混ざったら括弧の中に揃える", mergeQuantities(["600g", "2枚(550g)"]), "1150g");
 check("揃える単位がなければ並記のまま", mergeQuantities(["2個", "4g"]), "2個 + 4g");
 check("同じ単位の括弧は今までどおり", mergeQuantities(["1本(30g)", "1本(80g)"]), "2本(110g)");
+
+// ---------------------------------------------------------------------------
+// ■ 書き方が違うだけの材料を1行にまとめる
+// ---------------------------------------------------------------------------
+
+const spellings = mergeIngredients([
+  { name: "たまねぎ", quantity: "1/2個", category: "野菜", recipes: ["みそマヨ炒め"] },
+  { name: "玉ねぎ", quantity: "1/2個", category: "野菜", recipes: ["醤油マヨ炒め"] },
+  { name: "タマネギ", quantity: "1個", category: "野菜", recipes: ["肉じゃが"] },
+  { name: "しょうゆ", quantity: "大さじ1", category: "調味料", recipes: ["肉じゃが"] },
+  { name: "醤油", quantity: "大さじ2", category: "調味料", recipes: ["醤油マヨ炒め"] },
+  { name: "小ねぎ", quantity: "少々", category: "野菜", recipes: ["みそマヨ炒め"] },
+  { name: "長ねぎ", quantity: "1本", category: "野菜", recipes: ["甘辛炒め"] },
+]);
+
+const spelled = (name) => spellings.find((i) => i.name === name);
+check("玉ねぎ・たまねぎ・タマネギを1つにする", String(spellings.length), "4");
+check("まとめた分量を足す", spelled("玉ねぎ")?.quantity ?? "-", "2個");
+check("画面に出す名前をそろえる",
+  String(spellings.some((i) => ["たまねぎ", "タマネギ"].includes(i.name))), "false");
+check("3つのレシピが並ぶ", String(spelled("玉ねぎ")?.recipes.length ?? 0), "3");
+check("しょうゆと醤油も1つにする", spelled("醤油")?.quantity ?? "-", "大さじ3");
+check("小ねぎと長ねぎは別のまま",
+  String(normalizeName("小ねぎ") === normalizeName("長ねぎ")), "false");
+
+check("鳥もも肉と鶏もも肉は同じ", normalizeName("鳥もも肉"), normalizeName("鶏もも肉"));
+check("にんじんと人参は同じ", normalizeName("人参"), normalizeName("にんじん"));
+check("キャベツはカタカナのまま出す",
+  mergeIngredients([{ name: "キャベツ", quantity: "1/4個", category: "野菜", recipes: [] }])[0].name,
+  "キャベツ");
 
 // ---------------------------------------------------------------------------
 console.log(failures === 0 ? "\n✅ すべて通りました\n" : `\n❌ ${failures}件 失敗\n`);
