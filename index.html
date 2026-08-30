@@ -255,7 +255,7 @@
 
   .report { font-size: 12px; color: var(--ink-faint); line-height: 1.7; padding: 0 2px; }
   .report .num { font-size: 11px; }
-  button.link {
+  button.link, a.link {
     display: inline; border: 0; background: none; padding: 0; font-size: inherit;
     color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
   }
@@ -1325,7 +1325,10 @@ function displayName(key, group) {
 }
 
 // 組み立てた日付とコミット。不具合の報告に添えてもらうための目印。
-const BUILD = "2026-08-24-3309809";
+const BUILD = "2026-08-30-a84b56e";
+
+/** 不具合の報告先。読み取られた文章を貼ってもらう。ここだけは外部（Google）へ開く。 */
+const REPORT_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSc6PpHPibwNxCBwv0FObz4jyFCtNhZZDh-1kd1L9WgqldPprw/viewform";
 
 // ===========================================================================
 // 保存
@@ -1796,8 +1799,10 @@ function renderImport() {
         「材料」から「作り方」までの間だけを読み取ります。広告や関連レシピが混ざっていても大丈夫です。
       </div>
       <p class="report">
-        うまく取り出せないときは <button class="link" id="copy-src">この文章を送る</button> を押して、
-        メールやAirDropで知らせてください。読み取られた文章そのものがあれば直せます。<br>
+        うまく取り出せないときは、下の2つを押して知らせてください。読み取られた文章そのものがあれば直せます。<br>
+        <button class="link" id="copy-src">① 文章をコピー</button>
+        <a class="link" id="open-form" href="${REPORT_FORM}" target="_blank" rel="noopener">② 報告フォームを開く</a><br>
+        フォームはGoogleのページが開きます。送るかどうかはご自身で決められます。<br>
         <span class="num">版 ${BUILD}</span>
       </p>
     </div>
@@ -1808,23 +1813,14 @@ function renderImport() {
 
   // 不具合の報告には、読み取られた文章そのものが要る。手で写させない。
   //
-  // 報告する人と、直す人の端末は別のことが多い。iPhoneで読み取ってパソコンで書く、
-  // という往復ができるように、コピーではなく共有シートを開く。
-  // AirDrop・メール・メモ、どれでも同じ文章がそのまま渡る。
+  // コピーとフォームを1つのボタンにまとめると、待ち時間のあとに新しいタブを開くことになり、
+  // Safariに止められる。押す回数は増えるが、2つに分けておく。
   document.getElementById("copy-src").onclick = async (event) => {
     const text = document.getElementById("src").value.trim();
-    if (!text) return;
+    if (!text) { toast("先にレシピの文章を入れてください"); return; }
+
     const label = event.target;
     const payload = `--- レシピかご 版 ${BUILD} ---\n${text}`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "レシピかご 読み取り結果", text: payload });
-        return;
-      } catch {
-        // 共有を取り消した場合も、下のコピーに落とす。
-      }
-    }
 
     try {
       await navigator.clipboard.writeText(payload);
@@ -1833,7 +1829,7 @@ function renderImport() {
       document.getElementById("src").select();
       label.textContent = "選択しました（コピーを押してください）";
     }
-    setTimeout(() => { label.textContent = "この文章を送る"; }, 2500);
+    setTimeout(() => { label.textContent = "① 文章をコピー"; }, 2500);
   };
 
   document.getElementById("paste").onclick = async () => {
